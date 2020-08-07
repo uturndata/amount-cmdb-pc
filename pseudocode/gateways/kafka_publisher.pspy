@@ -1,0 +1,110 @@
+import boto3
+import hvac
+import json
+import kafka
+from aiohttp import web
+
+
+async def create_server():
+    """
+    Returns nothing - main server loop
+
+    Parameters:
+        none
+
+    Returns:
+        nothing
+
+    """
+    app = web.Application(load_config())
+    app.add_routes([web.post('/', accept_request)])
+
+    app.start()
+
+async def accept_request(request):
+    """
+    Returns true/false if request was handled properly
+
+    This will verify valid json packet, validate key fields
+
+    Parameters:
+        request (aiohttp.request)
+
+    Returns:
+        aiohttp.response
+    """
+
+    try:
+        json_dict = request.json()
+    except:
+        aiohttp.response(json={'error': 'could not load json})
+
+    publish_resource_json(json_dict)
+
+
+def publish_resource_json(json_dict: dict) -> bool:
+    """
+    Publishes the dict to an kafka queue
+
+    Parameters:
+        json_dict (dict) validated dictionary of json data
+
+    Returns:
+        status (bool) returns success status
+    """
+
+    status = True
+    try:
+        kafa_queue.publish(json.dumps(json_dict))
+    except:
+        status = False
+
+    return status
+
+
+def load_config() -> dict:
+    """
+    load the config for the endpoints from the designated store
+
+    Parameters:
+        none
+
+    Returns:
+        dict
+    """
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "vault":
+        dict = load_from_vault()
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "aws":
+        dict = load_from_aws()
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "env":
+        dict = load_from_env()
+
+    return dict
+
+
+def get_kafka_queue(queue_name: str) -> object:
+    """
+    Get the kafka queue
+
+    Parameters:
+        queue_name (str) the name of the kafka queue
+
+    Returns:
+        Kafka queue object
+    """
+
+    return kafka.client.queue(config['kafka_queue_name])
+
+if __name__ == "__main__":
+    try:
+        kafka_queue = get_kafka_queue(config['kafka_queue'])
+    except:
+        exit(1) #fail out - no point here without the queue available
+
+    create_server()

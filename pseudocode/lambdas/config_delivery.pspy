@@ -1,0 +1,104 @@
+import boto3
+import hvac
+import json
+import reqwest
+
+config = load_config()
+
+def handle_notification(notification: str) -> bool:
+    """
+    Returns true/false if message was handled properly
+
+    Parameters:
+        notification(str) (sns topic notification)
+
+    Returns:
+        true or false
+
+    """
+
+    return bool
+
+def lookup_resource(resource_id: str, resource_type: str=None) -> dict:
+    """
+    Makes a request to get resource config history that was changed and the changeset in AWS config
+
+    Parameters:
+        resource_id(str): the resource id, such as for 'ec2' i-9f9f9f9f9f9f9f9f
+        resource_type(str): [OPTIONAL, default None] - AWS resource type such as AWS::ec2::Host
+
+    Returns:
+        dict representation of the json returned by the lookup or None if failed
+    """
+    try:
+        dict = boto3.Config.GetResourceConfigHistory(resource_id, guess_resource_type(resource_id, resource_type))
+    except:
+        dict = None
+
+    return dict
+
+
+def guess_resource_type():
+    """
+    Attempts to find the resource that was changed and the changeset in AWS config
+
+    Parameters:
+        resource_id(str): the resource id, such as for 'ec2' i-9f9f9f9f9f9f9f9f
+        resource_type(str): [OPTIONAL, default None] - AWS resource type such as AWS::ec2::Host
+
+    Returns:
+        resource_type(str)
+    """
+
+    #stub
+    resource_type = None
+    resource_type = aws.resource_type(resource_id)
+
+    return resource_type
+
+
+
+def publish_resource_json(json_dict: dict) -> bool:
+    """
+    Publishes the dict to an http(s) endpoint
+
+    Parameters:
+        json_dict (dict) - dictionary representation of json body data
+
+    Returns:
+        status (bool) - success true/false
+    """
+
+    status = True
+    try:
+        reqwest.post(config.endpoint, headers=[{"Content-type":"application/json"}], json.dumps(json_dict))
+    except:
+        status = False
+
+    return status
+
+
+def load_config() -> dict:
+    """
+    load the config for the endpoints from the designated store
+
+    Parameters:
+        none
+
+    Returns:
+        dict
+    """
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "vault":
+        dict = load_from_vault()
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "aws":
+        dict = load_from_aws()
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "env":
+        dict = load_from_env()
+
+    return dict

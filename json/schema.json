@@ -1,0 +1,26 @@
+{
+    "accountId": "123456789012",
+    "arn": "arn:aws:ec2:us-west-2:123456789012:i-9f9f9f9f9f9f9f9f",
+        // arn may be pulled from id for some resources where it is used as an id
+        // (for instance), load balancers - otherwise will need to be derived from
+        // other fields.
+    "region": "us-west-2",
+    "availability_zone": "us-west-2a",
+    "id": "i-9f9f9f9f9f9f9f9f",  // The resourceId
+    "type": "AWS::EC2::Host", // The AWS resource type as defined by the return field
+                                // resourceType
+    "security_groups": [
+        "default_ssh_access",
+        "allow_from_corp_net",
+        "allow_from_mutual_sg"
+    ],
+    "tags": [
+        {"Name": "app01"},
+        {"Date": "2020-01-01"},
+        {"Serial Number": "101010101"} // All tags are strings, no matter their content
+    ],
+    "links": [ //optional, array of associated objects
+        {"network_interface_id": "eni-9f9f9f9f"},
+        {"subnet_id": "subnet-9f9f9f9f"}
+    ]
+}

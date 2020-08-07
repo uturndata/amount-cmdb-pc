@@ -1,0 +1,16 @@
+CREATE TABLE resources (
+    id bigserial
+    resource_id varchar
+    resource_type varchar
+    last_update datetime default NOW()
+
+) PRIMARY KEY (id)
+
+CREATE TABLE resource_version (
+    id bigserial
+    resources_id
+    resource_id varchar
+    version int
+    version_date datetime
+    json jsonb
+) PRIMARY KEY (id), REMOTE KEY (resources_id=resources.id, resource_id=resources.resource_id)
