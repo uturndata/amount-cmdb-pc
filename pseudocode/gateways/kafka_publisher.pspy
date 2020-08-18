@@ -5,21 +5,57 @@ import kafka
 from aiohttp import web
 
 
-async def create_server():
+def handle_notification(notification: str) -> bool:
     """
-    Returns nothing - main server loop
+    Returns true/false if message was handled properly
 
     Parameters:
-        none
+        notification(str) (sns topic notification)
 
     Returns:
-        nothing
+        true or false
 
     """
-    app = web.Application(load_config())
-    app.add_routes([web.post('/', accept_request)])
 
-    app.start()
+    return bool
+
+def lookup_resource(resource_id: str, resource_type: str=None) -> dict:
+    """
+    Makes a request to get resource config history that was changed and the changeset in AWS config
+
+    Parameters:
+        resource_id(str): the resource id, such as for 'ec2' i-9f9f9f9f9f9f9f9f
+        resource_type(str): [OPTIONAL, default None] - AWS resource type such as AWS::ec2::Host
+
+    Returns:
+        dict representation of the json returned by the lookup or None if failed
+    """
+    try:
+        dict = boto3.Config.GetResourceConfigHistory(resource_id, guess_resource_type(resource_id, resource_type))
+    except:
+        dict = None
+
+    return dict
+
+
+def guess_resource_type():
+    """
+    Attempts to find the resource that was changed and the changeset in AWS config
+
+    Parameters:
+        resource_id(str): the resource id, such as for 'ec2' i-9f9f9f9f9f9f9f9f
+        resource_type(str): [OPTIONAL, default None] - AWS resource type such as AWS::ec2::Host
+
+    Returns:
+        resource_type(str)
+    """
+
+    #stub
+    resource_type = None
+    resource_type = aws.resource_type(resource_id)
+
+    return resource_type
+
 
 async def accept_request(request):
     """
@@ -101,10 +137,63 @@ def get_kafka_queue(queue_name: str) -> object:
 
     return kafka.client.queue(config['kafka_queue_name])
 
+
+def get_sqs_queue(queue_name: str) -> object:
+    """
+    Get the sqs queue
+
+    Parameters:
+        queue_name (str) the name of the kafka queue
+
+    Returns:
+        ssq queue object
+    """
+
+    return boto3.client.sqs(config['kafka_queue_name])
+
+
+def get_sqs_messages():
+    """
+    Get the sqs queue
+
+    Parameters:
+       None
+
+    Returns:
+        ssq queue message
+    """
+
+    return sqs_queue.get_message()
+
+
+
+def run_sqs_consumer():
+    """
+    Run the sqs queue
+
+    Parameters:
+        None
+
+    Returns:
+        Nothing
+    """
+
+    try:
+        while qm = get_sqs_message():
+            resource_id = qm['resource_id']
+            resource = lookup_resource(resource_id,guess_resource_type(resource_id))
+            publish_resource_json(resource)
+            qm.delete()
+    except:
+        pass # nominally we probably want to fire off an alert here
+
+
+
 if __name__ == "__main__":
     try:
         kafka_queue = get_kafka_queue(config['kafka_queue'])
+        sqs_queue = get_sqs_queue(config['sqs_queue'])
     except:
         exit(1) #fail out - no point here without the queue available
 
-    create_server()
+    run_sqs_consumer()
