@@ -2,6 +2,7 @@ import boto3
 import hvac
 import json
 import reqwest
+from os import env
 
 config = load_config()
 

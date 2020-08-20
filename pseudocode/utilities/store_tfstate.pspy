@@ -1,0 +1,177 @@
+import postgres
+import json
+import sys
+from os import env
+import hvac
+
+def import_resource(resource_dict: dict, resource_id: str) -> bool:
+     """
+    import the designated resource to the datastore
+
+    Parameters:
+        resource_dict(dict): dictionary of loaded json from terraform state
+        resource_id(str): the resource id whose stanza we want to store
+
+    Returns:
+        bool: true if found/stored, false otherwise
+    """
+
+    status = true
+
+    p = postgres.connect(config['postgres_dsn'])
+    p.start_transaction()
+    try:
+        resource = find_resource(resource_dict, resource_id)
+            for resource_item in resource['primary']:
+                # QUERY: INSERT INTO resource_terraform (resource_id, resource_item, json) VALUES ('%s','%s','%s')
+                p.insert(resource_item['resource_id'], resource_item['resource_type'], json.dumps(resource) )
+        p.commit()
+
+    except:
+        p.rollback()
+        status = false
+
+    return status
+
+
+def import_all(resource_dict: dict) -> bool:
+     """
+    import all resources to the datastore. runs as transaction; if one fails, all will be rolled back.
+
+    The rollback should never happen, because it would generally mean malformed json which should get caught
+    during get*state calls.
+
+    Parameters:
+        resource_dict(dict): dictionary of loaded json from terraform state
+
+    Returns:
+        bool: true if stored, false otherwise
+    """
+
+    status = true
+
+    p = postgres.connect(config['postgres_dsn'])
+    p.start_transaction()
+    try:
+        for resource in resource_dict['modules']['resources']:
+            for resource_item in resource['primary']:
+                # QUERY: INSERT INTO resource_terraform (resource_id, resource_item, json) VALUES ('%s','%s','%s')
+                p.insert(resource_item['resource_id'], resource_item['resource_type'], json.dumps(resource) )
+        p.commit()
+
+    except:
+        p.rollback()
+        status = false
+
+    p.close()
+    return status
+
+
+
+def get_state(file_name: str) -> dict:
+    """
+    convert terraform state json in a file to a dict
+
+    Parameters:
+        file_name(str): the path to the terraform state
+
+    Returns:
+        dict: empty on failure, otherwise dict representation of the json
+    """
+    data = {}
+
+    try:
+        f = open(file_name)
+        str_data = f.read()
+        f.close()
+    except:
+        pass
+
+    try:
+        data = get_raw_state(str_data)
+    except:
+        pass
+
+    return data
+
+def get_raw_state(json_data: str) -> dict:
+    """
+    convert terraform state json in a string to a dict
+
+    Parameters:
+        json_data(str): the json of the terraform state
+
+    Returns:
+        dict: empty on failure, otherwise dict representation of the json
+    """
+
+
+    data = {}
+    try:
+        data = json.loads(json_data)
+    except:
+        pass
+
+    return data
+
+
+def find_resource(resource_dict: dict, resource_id: str) -> dict:
+    """
+    find a resource in a dictionary
+
+    Parameters:
+        resource_dict(dict): dictionary of loaded json from terraform state
+        resource_id(str): the resource id whose stanza we want to store
+
+    Returns:
+        dict: empty on failure, otherwise dict representation of the json
+    """
+
+    resource = {}
+
+    for resource in resource_dict['modules']['resources']:
+        for resource_item in resource['primary']:
+            if resource_item['resource_id'] == resource_id:
+                resource = resource_item
+                break
+
+    return resource
+
+
+def load_config() -> dict:
+    """
+    load the config for the endpoints from the designated store
+
+    Parameters:
+        none
+
+    Returns:
+        dict
+    """
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "vault":
+        dict = load_from_vault()
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "aws":
+        dict = load_from_aws()
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "env":
+        dict = load_from_env()
+
+    return dict
+
+if __name__ == "__main__":
+    try:
+        config = load_config()
+        resource_data = get_state(os.argv['file'])
+        if os.argv['resource'] == 'resource':
+            import_resource(find_resource(resource_data,os.argv['resource_id']))
+        else:
+            import_all(resource_data)
+
+
+    except:
+        exit(1) #fail out - no point here without the queue available

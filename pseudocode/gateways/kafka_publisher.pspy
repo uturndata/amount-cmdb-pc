@@ -3,6 +3,7 @@ import hvac
 import json
 import kafka
 from aiohttp import web
+from os import env
 
 
 def handle_notification(notification: str) -> bool:
@@ -191,6 +192,7 @@ def run_sqs_consumer():
 
 if __name__ == "__main__":
     try:
+        config = load_config()
         kafka_queue = get_kafka_queue(config['kafka_queue'])
         sqs_queue = get_sqs_queue(config['sqs_queue'])
     except:
