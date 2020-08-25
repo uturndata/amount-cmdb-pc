@@ -1,0 +1,143 @@
+import postgres
+import json
+import sys
+import boto3
+import kafka
+from os import env
+import hvac
+
+
+def lookup_resource(resource_id: str, resource_type: str=None) -> dict:
+    """
+    Makes a request to get resource config history that was changed and the changeset in AWS config
+
+    Parameters:
+        resource_id(str): the resource id, such as for 'ec2' i-9f9f9f9f9f9f9f9f
+        resource_type(str): [OPTIONAL, default None] - AWS resource type such as AWS::ec2::Host
+
+    Returns:
+        dict representation of the json returned by the lookup or None if failed
+    """
+    try:
+        dict = boto3.Config.GetResourceConfigHistory(resource_id, guess_resource_type(resource_id, resource_type))
+    except:
+        dict = None
+
+    return dict
+
+
+def guess_resource_type(resource_id: str, resource_type):
+    """
+    Attempts to find the resource that was changed and the changeset in AWS config
+
+    Parameters:
+        resource_id(str): the resource id, such as for 'ec2' i-9f9f9f9f9f9f9f9f
+        resource_type(str): [OPTIONAL, default None] - AWS resource type such as AWS::ec2::Host
+
+    Returns:
+        resource_type(str)
+    """
+
+    #stub
+    resource_type = None
+    resource_type = aws.resource_type(resource_id)
+
+    return resource_type
+
+
+def import_resource(resource_dict: dict, resource_id: str) -> bool:
+     """
+    import the designated resource to the datastore
+
+    Parameters:
+        resource_dict(dict): dictionary of loaded json from terraform state
+        resource_id(str): the resource id whose stanza we want to store
+
+    Returns:
+        bool: true if found/stored, false otherwise
+    """
+
+    status = true
+
+    p = postgres.connect(config['postgres_dsn'])
+    p.start_transaction()
+    try:
+        resource = find_resource(resource_dict, resource_id)
+            for resource_item in resource['primary']:
+                # QUERY: INSERT INTO resource_config (resource_id, resource_item, json) VALUES ('%s','%s','%s')
+                p.insert(resource_item['resource_id'], resource_item['resource_type'], json.dumps(resource) )
+        p.commit()
+
+    except:
+        p.rollback()
+        status = false
+
+    return status
+
+
+def find_resource(resource_dict: dict, resource_id: str) -> dict:
+    """
+    find a resource in a dictionary
+
+    Parameters:
+        resource_dict(dict): dictionary of loaded json from terraform state
+        resource_id(str): the resource id whose stanza we want to store
+
+    Returns:
+        dict: empty on failure, otherwise dict representation of the json
+    """
+
+    resource = {}
+
+    for resource in resource_dict['modules']['resources']:
+        for resource_item in resource['primary']:
+            if resource_item['resource_id'] == resource_id:
+                resource = resource_item
+                break
+
+    return resource
+
+
+def load_config() -> dict:
+    """
+    load the config for the endpoints from the designated store
+
+    Parameters:
+        none
+
+    Returns:
+        dict
+    """
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "vault":
+        dict = load_from_vault()
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "aws":
+        dict = load_from_aws()
+
+    # Load variables from Vault
+    if env.get("LOAD_FROM") == "env":
+        dict = load_from_env()
+
+    return dict
+
+if __name__ == "__main__":
+    try:
+        config = load_config()
+        kqueue = config['kafka_queue']
+
+        # note this only reads one message,
+        # using a while loop would run until the queue is empty,
+        # however if the queue is empty it could be slept and continued
+
+        if message_json = kqueue.read():
+            message = json.loads(message)
+            resource_data = get_config(message['resource_id'])
+            import_resource(find_resource(resource_data,os.argv['resource_id']))
+
+
+
+    except:
+        exit(1) #fail out - no point here without the queue available
